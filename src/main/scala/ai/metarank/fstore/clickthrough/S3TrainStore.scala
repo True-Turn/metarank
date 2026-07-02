@@ -18,7 +18,7 @@ import software.amazon.awssdk.auth.credentials.{
 }
 import software.amazon.awssdk.core.async.AsyncRequestBody
 import software.amazon.awssdk.regions.Region
-import software.amazon.awssdk.services.s3.model.{GetObjectRequest, ListObjectsRequest, PutObjectRequest}
+import software.amazon.awssdk.services.s3.model.{GetObjectRequest, ListObjectsV2Request, PutObjectRequest}
 import software.amazon.awssdk.services.s3.S3AsyncClient
 
 import java.io.{ByteArrayOutputStream, DataInputStream, DataOutputStream, FileInputStream, InputStream}
@@ -66,13 +66,26 @@ case class S3TrainStore(
       )
   }
 
-  def listKeys(): IO[List[String]] = for {
-    request  <- IO(ListObjectsRequest.builder().bucket(conf.bucket).prefix(conf.prefix).build())
-    response <- IO.fromCompletableFuture(IO(client.listObjects(request)))
-    files    <- IO(response.contents().asScala.map(_.key()).toList.sorted)
-    _        <- info(s"S3 list objects: count=${files.size} values=$files")
-  } yield {
-    files
+  def listKeys(): IO[List[String]] = {
+    def loop(token: Option[String], acc: List[String]): IO[List[String]] =
+      for {
+        request <- IO {
+          val b = ListObjectsV2Request.builder().bucket(conf.bucket).prefix(conf.prefix)
+          token.foreach(b.continuationToken)
+          b.build()
+        }
+        response <- IO.fromCompletableFuture(IO(client.listObjectsV2(request)))
+        keys = response.contents().asScala.map(_.key()).toList
+        result <- if (response.isTruncated)
+                    loop(Some(response.nextContinuationToken()), acc ++ keys)
+                  else IO.pure(acc ++ keys)
+      } yield result
+
+    for {
+      all <- loop(None, Nil)
+      sorted = all.sorted
+      _ <- info(s"S3 list objects: count=${sorted.size}")
+    } yield sorted
   }
 
   def tick(): IO[Unit] = for {
