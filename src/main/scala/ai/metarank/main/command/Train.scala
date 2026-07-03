@@ -8,7 +8,7 @@ import ai.metarank.fstore.memory.MemPersistence
 import ai.metarank.main.CliArgs.{ServeArgs, TrainArgs}
 import ai.metarank.ml.{Context, Model, Predictor}
 import ai.metarank.ml.rank.LambdaMARTRanker.{LambdaMARTModel, LambdaMARTPredictor}
-import ai.metarank.model.{FeatureWeight, TrainResult}
+import ai.metarank.model.{FeatureWeight, TrainResult, TrainValues}
 import ai.metarank.model.TrainResult.{FeatureStatus, IterationStatus}
 import ai.metarank.util.Logging
 import cats.effect.IO
@@ -35,32 +35,27 @@ object Train extends Logging {
               ).map(x => Map(x._1 -> x._2))
             case None => info(s"Training all models: ${mapping.models.keys.toList}") *> IO.pure(mapping.models)
           }
-          _ <- models.toList
-            .map {
-              case (name, pred) =>
-                store match {
-                  case MemPersistence(_) =>
-                    IO.raiseError(
-                      new Exception(
-                        """=======
-                          |You're using an in-mem persistence and invoked a train sub-command.
-                          |In-mem persistence is not actually persisting anything between metarank invocations,
-                          |so it has zero saved click-through records for model training.
-                          |
-                          |You probably need to enable redis persistence in the config file, or use
-                          |a standalone mode (which imports data and trains ML model within a single
-                          |JVM process)
-                          |=======""".stripMargin
-                      )
-                    )
-                  case _ =>
-                    train(store, cts, pred).void
-                }
-
-              case _ => IO.raiseError(new Exception(s"model ${args.model} is not defined in config"))
-            }
-            .sequence
-            .void
+          _ <- store match {
+            case MemPersistence(_) =>
+              IO.raiseError(
+                new Exception(
+                  """=======
+                    |You're using an in-mem persistence and invoked a train sub-command.
+                    |In-mem persistence is not actually persisting anything between metarank invocations,
+                    |so it has zero saved click-through records for model training.
+                    |
+                    |You probably need to enable redis persistence in the config file, or use
+                    |a standalone mode (which imports data and trains ML model within a single
+                    |JVM process)
+                    |=======""".stripMargin
+                )
+              )
+            case _ => IO.unit
+          }
+          // Load and decode the train store once, then reuse it for every model
+          data <- cts.getall().compile.toVector
+          _    <- info(s"loaded ${data.size} training records, reused across ${models.size} model(s)")
+          _    <- models.toList.traverse { case (_, pred) => trainShared(store, data, pred).void }.void
         } yield {
           logger.info("Training finished")
         }
@@ -68,12 +63,28 @@ object Train extends Logging {
     })
   }
 
+  // Single-model entry point: streams the store straight into fit. Used by the serve-time
+  // train API, standalone mode and tests, which train one model per call.
   def train(
       store: Persistence,
       cts: TrainStore,
       predictor: Predictor[_ <: ModelConfig, _, _ <: Model[_ <: Context]]
+  ): IO[TrainResult] =
+    fitAndStore(store, cts.getall().filter(c => predictor.config.selector.accept(c)), predictor)
+
+  def trainShared(
+      store: Persistence,
+      data: Vector[TrainValues],
+      predictor: Predictor[_ <: ModelConfig, _, _ <: Model[_ <: Context]]
+  ): IO[TrainResult] =
+    fitAndStore(store, fs2.Stream.emits(data).covary[IO].filter(c => predictor.config.selector.accept(c)), predictor)
+
+  private def fitAndStore(
+      store: Persistence,
+      data: fs2.Stream[IO, TrainValues],
+      predictor: Predictor[_ <: ModelConfig, _, _ <: Model[_ <: Context]]
   ): IO[TrainResult] = for {
-    model <- predictor.fit(cts.getall().filter(c => predictor.config.selector.accept(c)))
+    model <- predictor.fit(data)
     weights = (model, predictor) match {
       case (m: LambdaMARTModel, p: LambdaMARTPredictor) =>
         m.weights(p.desc).map { case (name, w) => FeatureStatus(name, w) }
