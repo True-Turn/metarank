@@ -69,7 +69,7 @@ case class S3TrainStore(
         _       <- IO(Files.createDirectories(file.getParent))
         request <- IO(GetObjectRequest.builder().bucket(conf.bucket).key(key).build())
         responseSize <- IO(file.toFile.exists()).flatMap {
-          case true  => info(s"skipped existing file $key") *> IO(file.toFile.getTotalSpace)
+          case true  => IO(file.toFile.getTotalSpace)
           case false => IO.fromCompletableFuture(IO(client.getObject(request, file))).map[Long](_.contentLength())
         }
         _ <- info(s"read part $key size=${FileUtils.byteCountToDisplaySize(responseSize)}")
