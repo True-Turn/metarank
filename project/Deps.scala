@@ -11,6 +11,7 @@ object Deps {
   lazy val luceneVersion             = "9.12.2"
   lazy val pulsarVersion             = "4.0.5"
   lazy val awsVersion                = "2.31.70"
+  lazy val nettyVersion              = "4.2.16.Final"
   lazy val prometheusVersion         = "0.16.0"
   lazy val djlVersion                = "0.28.0"
 

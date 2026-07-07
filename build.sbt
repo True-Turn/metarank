@@ -97,6 +97,24 @@ lazy val root = (project in file("."))
     excludeDependencies ++= Seq(
       "commons-logging" % "commons-logging"
     ),
+    // Force Netty 4.2+: transitive deps (lettuce, http4s) resolve 4.1.x, which
+    // still calls sun.misc.Unsafe and triggers JDK 24+ startup warnings.
+    // Netty 4.2 detects modern JDKs and avoids Unsafe by default.
+    dependencyOverrides ++= Seq(
+      "io.netty" % "netty-common"                 % nettyVersion,
+      "io.netty" % "netty-buffer"                 % nettyVersion,
+      "io.netty" % "netty-codec"                  % nettyVersion,
+      "io.netty" % "netty-codec-dns"              % nettyVersion,
+      "io.netty" % "netty-codec-http"             % nettyVersion,
+      "io.netty" % "netty-codec-http2"            % nettyVersion,
+      "io.netty" % "netty-handler"                % nettyVersion,
+      "io.netty" % "netty-resolver"               % nettyVersion,
+      "io.netty" % "netty-resolver-dns"           % nettyVersion,
+      "io.netty" % "netty-transport"              % nettyVersion,
+      "io.netty" % "netty-transport-classes-epoll" % nettyVersion,
+      "io.netty" % "netty-transport-native-epoll" % nettyVersion,
+      "io.netty" % "netty-transport-native-unix-common" % nettyVersion
+    ),
     Compile / mainClass             := Some("ai.metarank.main.Main"),
     Compile / discoveredMainClasses := Seq(),
     docker / dockerfile := {
