@@ -49,7 +49,7 @@ case class S3TrainStore(
       val seen = scala.collection.mutable.HashSet.empty[EventId]
       fs2.Stream
         .evalSeq(listKeys())
-        .flatMap(key =>
+        .map(key =>
           // A single truncated/corrupt part (e.g. left behind by an interrupted or
           // concurrent write) must not abort the whole training run: log it and skip
           // the rest of that part, keeping the records already read from it and every
@@ -58,6 +58,8 @@ case class S3TrainStore(
             fs2.Stream.exec(warn(s"skipping unreadable train part $key: ${e.getMessage}"))
           )
         )
+        // Download and decode up to readConcurrency parts at once
+        .parJoin(conf.readConcurrency)
         // De-duplicate by id
         .filter(tv => seen.add(tv.id))
     }
