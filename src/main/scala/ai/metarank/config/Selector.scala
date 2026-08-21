@@ -66,7 +66,30 @@ object Selector {
     override def accept(event: Clickthrough): Boolean = accept
   }
 
+  case class UserSelector(user: String) extends Selector {
+    override def accept(event: Clickthrough): Boolean = event.user.exists(_.value == user)
+  }
+
+  // Selects clickthroughs landing in a fixed slot of a repeating period, to isolate
+  // synthetic traffic from schedulers firing on a strict interval. Periods are aligned
+  // to the epoch, so a 300s period starts on every wall-clock 5-minute mark in UTC.
+  case class CadenceSelector(periodSeconds: Int, secondFrom: Int, secondTo: Int) extends Selector {
+    override def accept(event: Clickthrough): Boolean = {
+      val offset = Math.floorMod(Math.floorDiv(event.ts.ts, 1000L), periodSeconds.toLong)
+      (offset >= secondFrom) && (offset <= secondTo)
+    }
+  }
+
   implicit val fieldSelectorCodec: Codec[FieldSelector] = deriveCodec
+
+  implicit val userSelectorCodec: Codec[UserSelector] = deriveCodec
+
+  implicit val cadenceEncoder: Encoder[CadenceSelector] = deriveEncoder
+  implicit val cadenceDecoder: Decoder[CadenceSelector] = deriveDecoder[CadenceSelector].ensure(
+    s => (s.periodSeconds > 0) && (s.secondFrom >= 0) && (s.secondTo >= s.secondFrom) && (s.secondTo < s.periodSeconds),
+    "cadence selector needs 0 <= secondFrom <= secondTo < periodSeconds"
+  )
+  implicit val cadenceCodec: Codec[CadenceSelector] = Codec.from(cadenceDecoder, cadenceEncoder)
 
   implicit val rankingLengthEncoder: Encoder[RankingLengthSelector] = deriveEncoder
   implicit val rankingLengthDecoder: Decoder[RankingLengthSelector] = deriveDecoder[RankingLengthSelector].ensure(
@@ -102,6 +125,8 @@ object Selector {
       NonEmptyList.of(
         rankingLengthCodec,
         maxPositionCodec,
+        cadenceCodec,
+        userSelectorCodec,
         fieldSelectorCodec,
         sampleSelectorCodec,
         andSelectorCodec,
@@ -132,6 +157,8 @@ object Selector {
     case a: AcceptSelector              => acceptSelectorCodec(a)
     case m: InteractionPositionSelector => maxPositionCodec(m)
     case r: RankingLengthSelector       => rankingLengthCodec(r)
+    case u: UserSelector                => userSelectorCodec(u)
+    case c: CadenceSelector             => cadenceCodec(c)
   }
   implicit val selectorCodec: Codec[Selector] = Codec.from(selectorDecoder, selectorEncoder)
 }
