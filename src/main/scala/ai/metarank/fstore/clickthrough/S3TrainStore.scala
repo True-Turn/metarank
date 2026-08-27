@@ -58,7 +58,7 @@ case class S3TrainStore(
           case None    => warn(s"part $key has an unsupported extension (expected .gz/.zst/.bin), skipping").as(false)
         }
       )
-      .flatMap(key =>
+      .map(key =>
         // A single truncated/corrupt part (e.g. left behind by an interrupted or
         // concurrent write) must not abort the whole training run: log it and skip
         // the rest of that part, keeping the records already read from it and every
@@ -67,6 +67,7 @@ case class S3TrainStore(
           fs2.Stream.exec(warn(s"skipping unreadable train part $key: ${e.getMessage}"))
         )
       )
+      .parJoin(conf.readConcurrency)
 
   def getPart(key: String): fs2.Stream[IO, TrainValues] = {
     fs2.Stream
