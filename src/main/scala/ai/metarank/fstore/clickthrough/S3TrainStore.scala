@@ -58,7 +58,7 @@ case class S3TrainStore(
           case None    => warn(s"part $key has an unsupported extension (expected .gz/.zst/.bin), skipping").as(false)
         }
       )
-      .flatMap(key =>
+      .map(key =>
         // A single truncated/corrupt part (e.g. left behind by an interrupted or
         // concurrent write) must not abort the whole training run: log it and skip
         // the rest of that part, keeping the records already read from it and every
@@ -67,9 +67,11 @@ case class S3TrainStore(
           fs2.Stream.exec(warn(s"skipping unreadable train part $key: ${e.getMessage}"))
         )
       )
+      .parJoin(conf.readConcurrency)
 
     if (conf.deduplicate)
-      // Suspend so each materialisation of the stream gets its own seen-set
+      // Suspend so each materialisation of the stream gets its own seen-set. The filter runs
+      // downstream of parJoin, so the seen-set is only ever touched by one fiber.
       fs2.Stream.suspend {
         val seen = scala.collection.mutable.HashSet.empty[EventId]
         parts.filter(tv => seen.add(tv.id))

@@ -37,6 +37,9 @@ object TrainConfig {
     case other          => Failure(new Exception(s"compression type $other not supported. Try gzip/zstd/none."))
   }
 
+  // How many train parts to download and decode concurrently in S3TrainStore.getall
+  val defaultReadConcurrency: Int = Runtime.getRuntime.availableProcessors()
+
   case class S3TrainConfig(
       awsKey: Option[String] = None,
       awsKeySecret: Option[String] = None,
@@ -49,6 +52,7 @@ object TrainConfig {
       partInterval: FiniteDuration = 1.hour,
       endpoint: Option[String] = None,
       format: StoreFormat = BinaryStoreFormat,
+      readConcurrency: Int = defaultReadConcurrency,
       deduplicate: Boolean = false
   ) extends TrainConfig
   given s3TrainConfigDecoder: Decoder[S3TrainConfig] = Decoder.instance(c =>
@@ -64,6 +68,7 @@ object TrainConfig {
       partInterval    <- c.downField("partInterval").as[Option[FiniteDuration]]
       endpoint        <- c.downField("endpoint").as[Option[String]]
       format          <- c.downField("format").as[Option[StoreFormat]]
+      readConcurrency <- c.downField("readConcurrency").as[Option[Int]]
       deduplicate     <- c.downField("deduplicate").as[Option[Boolean]]
     } yield {
       S3TrainConfig(
@@ -78,6 +83,7 @@ object TrainConfig {
         partInterval.getOrElse(1.hour),
         endpoint,
         format.getOrElse(BinaryStoreFormat),
+        readConcurrency.getOrElse(defaultReadConcurrency),
         deduplicate.getOrElse(false)
       )
     }

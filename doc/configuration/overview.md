@@ -112,6 +112,8 @@ train:
   format: json | binary       # optional, default: binary
   deduplicate: false          # optional, default: false, drop records whose event id was
   # already seen while reading, for buckets holding parts uploaded more than once
+  readConcurrency: 8          # optional, parts read in parallel during train,
+  # default: number of available CPUs, set to 1 for sequential reads
   awsKey: "<key>"             # optional, you should prefer setting
   # AWS_KEY_ID and AWS_SECRET_KEY_ID env vars
   awsKeySecret: "<secret>"    # optional
