@@ -72,9 +72,22 @@ jobs:
       - name: Rename jar with version suffix
         run: cp target/metarank.jar "metarank-${GITHUB_REF_NAME}.jar"
 
+      # Retrievable from the run even if the release step cannot write, so a permissions
+      # failure does not cost a rebuild.
+      - name: Upload jar as a run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: metarank-${{ github.ref_name }}
+          path: metarank-${{ github.ref_name }}.jar
+          retention-days: 14
+          compression-level: 0
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
+          # Falls back to GITHUB_TOKEN, which needs contents:write. Where an org policy caps the
+          # default token at read-only, set RELEASE_TOKEN to a PAT or App token with that scope.
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }} # 0.7.12-M1 → pre-release
           files: metarank-${{ github.ref_name }}.jar
