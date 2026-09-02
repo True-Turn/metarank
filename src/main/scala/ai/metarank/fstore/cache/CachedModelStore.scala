@@ -9,6 +9,7 @@ import cats.effect.IO
 import com.github.benmanes.caffeine.cache.RemovalCause
 import com.github.blemale.scaffeine.Scaffeine
 
+import java.util.concurrent.ArrayBlockingQueue
 import scala.concurrent.duration.*
 
 case class CachedModelStore(fast: ModelStore, slow: ModelStore) extends ModelStore {
@@ -29,15 +30,44 @@ case class CachedModelStore(fast: ModelStore, slow: ModelStore) extends ModelSto
 }
 
 object CachedModelStore extends Logging {
-  def createCache(ticker: EventTicker, size: Int = 32, expire: FiniteDuration = 1.hour) = Scaffeine()
-    .ticker(ticker)
-    .maximumSize(size)
-    .expireAfterAccess(expire)
-    .removalListener(disposeModel)
-    .build[ModelName, Model[?]]()
+  val retiredModelsSize = 4
 
-  def disposeModel(key: ModelName, model: Model[?], reason: RemovalCause): Unit = {
-    logger.info(s"removing model $key due to $reason")
-    model.close()
+  def createCache(ticker: EventTicker, size: Int = 32, expire: FiniteDuration = 1.hour) = {
+    val retired = new RetiredModels(retiredModelsSize)
+    Scaffeine()
+      .ticker(ticker)
+      .maximumSize(size)
+      .expireAfterAccess(expire)
+      .removalListener(disposeModel(retired))
+      .build[ModelName, Model[?]]()
+  }
+
+  def disposeModel(retired: RetiredModels)(key: ModelName, model: Model[?], reason: RemovalCause): Unit = reason match {
+    // A REPLACED instance may still be held by an in-flight request, and closing a model frees the
+    // native memory its predict call is reading, so it is parked rather than closed here. Every
+    // other cause means the cache held the last reference.
+    case RemovalCause.REPLACED =>
+      logger.debug(s"model $key was replaced, parking the previous instance")
+      retired.park(model)
+
+    case _ =>
+      logger.info(s"removing model $key due to $reason")
+      model.close()
+  }
+
+  // Keeps replaced instances alive for requests still running inference on them. A parked model is
+  // closed once `capacity` further replacements have happened, bounding retained native memory at
+  // `capacity` models.
+  class RetiredModels(capacity: Int) extends Logging {
+    private val parked = new ArrayBlockingQueue[Model[?]](capacity)
+
+    def park(model: Model[?]): Unit =
+      while (!parked.offer(model)) Option(parked.poll()).foreach(close)
+
+    def size(): Int = parked.size()
+
+    private def close(model: Model[?]): Unit =
+      try model.close()
+      catch { case e: Throwable => logger.warn(s"failed to close a parked model", e) }
   }
 }
