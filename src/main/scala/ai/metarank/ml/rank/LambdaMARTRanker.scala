@@ -167,7 +167,7 @@ object LambdaMARTRanker extends Logging {
             earlyStopping = Some(20),
             debias = debias
           )
-          LambdaMART(split.train, LightGBMBooster, Some(split.test), opts).fit(opts)
+          LambdaMART(split.train, BestIterationBooster.LightGBM, Some(split.test), opts).fit(opts)
         case XGBoostConfig(it, lr, ndcg, depth, seed, sampling, debias) =>
           val opts = XGBoostOptions(
             trees = it,
@@ -180,7 +180,7 @@ object LambdaMARTRanker extends Logging {
             treeMethod = "exact", // hist/approx do not work with categories
             debias = debias
           )
-          LambdaMART(split.train, XGBoostBooster, Some(split.test), opts).fit(opts)
+          LambdaMART(split.train, BestIterationBooster.XGBoost, Some(split.test), opts).fit(opts)
       }
     }
 
