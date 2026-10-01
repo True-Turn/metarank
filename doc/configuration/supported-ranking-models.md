@@ -34,7 +34,7 @@ To configure the model, use the following snippet:
     type: lambdamart 
     backend:
       type: xgboost # supported values: xgboost, lightgbm
-      iterations: 100 # optional (default 100), number of interactions while training the model
+      iterations: 100 # optional (default 100), maximum number of training iterations
       seed: 0 # optional (default = random), a seed to make training deterministic
     weights: # types and weights of interactions used in the model training
       click: 1 # you can increase the weight of some events to hint model to optimize more for them
@@ -187,7 +187,9 @@ Each strategy definition in a config file can be optionally configured with a sp
 
 ### XGBoost and LightGBM backend options
 
-* *iterations*: *optional*, *number*, default: *100*, number of trees in the model.
+* *iterations*: *optional*, *number*, default: *100*, maximum number of training iterations, each adding one tree to the model.
+  Training stops early once 20 iterations in a row fail to improve the test set NDCG, and the model is saved as of its best-scoring iteration.
+  If the training log shows the best iteration close to this limit, the model was still improving, and a higher limit is likely to help.
 * *learningRate*: *optional*, *number*, default: *0.1*, higher the rate - faster training - less precise model.
 * *ndcgCutoff*: *optional*, *number*, default: *10*, only N first items may affect the NDCG.
 * *maxDepth*: *optional*, *number*, default: *8*, the depth of the tree.
