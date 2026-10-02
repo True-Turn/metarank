@@ -185,13 +185,13 @@ AND and OR selectors take a list of nested selectors as arguments, NOT selector 
 Metarank supports three train/test splitting strategies:
 
 * `random`: split dataset randomly.
-* `hold_last`: for each session having multiple rankings, take last N% of rankings as a test set. Can be useful to measure an in-session personalization impact .
+* `hold_last`: for each user having multiple rankings, take the last N% of their rankings as a test set. A user with a single ranking goes to the train set. Can be useful to measure a personalization impact.
 * `time`: split dataset by a timestamp.
 
 Each strategy definition in a config file can be optionally configured with a split ratio - 80% by default. An example:
 
 * `random=80%`: split dataset randomly. Be careful with random splitting, as it may introduce label leaking.
-* `hold_last`: split within session with a default 80% splitting ratio.
+* `hold_last`: split within each user's rankings with a default 80% splitting ratio.
 
 ### XGBoost and LightGBM backend options
 
