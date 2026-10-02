@@ -68,7 +68,7 @@ object SplitStrategy {
           sorted match {
             case x1 :: Nil       => (sorted, Nil)
             case x1 :: x2 :: Nil => (List(x1), List(x2))
-            case other           => sorted.splitAt(math.round(queries.size * (ratioPercent / 100.0f)))
+            case other           => sorted.splitAt(math.round(other.size * (ratioPercent / 100.0f)))
           }
         }
       }

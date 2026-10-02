@@ -1,8 +1,9 @@
 package ai.metarank.main
 
 import ai.metarank.main.command.train.SplitStrategy
-import ai.metarank.main.command.train.SplitStrategy.{FieldStrategy, RandomSplit, TimeSplit}
+import ai.metarank.main.command.train.SplitStrategy.{FieldStrategy, HoldLastStrategy, RandomSplit, TimeSplit}
 import ai.metarank.model.Field.StringField
+import ai.metarank.model.Identifier.UserId
 import ai.metarank.model.{QueryMetadata, Timestamp}
 import cats.effect.unsafe.implicits.global
 import io.github.metarank.ltrlib.model.{DatasetDescriptor, LabeledItem, Query}
@@ -51,5 +52,18 @@ class SplitStrategyTest extends AnyFlatSpec with Matchers {
       .unsafeRunSync()
     result.test.groups.size shouldBe 1
     result.train.groups.size shouldBe 1
+  }
+
+  "hold-last split" should "hold back the latest rankings of each user" in {
+    // Group ids number each user's rankings in time order: 0..9 for u1, 100..109 for u2
+    val queries = for {
+      (user, offset) <- List("u1" -> 0, "u2" -> 100)
+      i              <- 0 until 10
+    } yield {
+      QueryMetadata(Query(offset + i, Array(1.0), Array(1.0)), Timestamp(1000L * i), Some(UserId(user)), Nil)
+    }
+    val split = HoldLastStrategy(80).split(desc, queries).unsafeRunSync()
+    split.test.groups.map(_.group).sorted shouldBe List(8, 9, 108, 109)
+    split.train.groups.size shouldBe 16
   }
 }
