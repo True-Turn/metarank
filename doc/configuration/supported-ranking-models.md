@@ -59,7 +59,7 @@ To configure the model, use the following snippet:
 * `weights`: *required*, *list of string:number pairs*, specifies what interaction events are used for training. You can specify multiple events with different weights.
 * `features`: *required*, *list of string*, features used for model training, see [Feature extractors](feature-extractors.md) documentation.
 * `selector`: *optional*, *list of selectors*, a set of rules to filter which events should be accepted by this model.
-* `split`: *optional*, a train/test splitting strategy. Default: `time=80%`. Options: `random`/`hold_last`/`time` with an optional ratio (default: 80%, which means 80% allocated to train, 20% to test). Example: `random=80%` means split dataset randomly, 80% should be allocated to the train set.
+* `split`: *optional*, a train/test splitting strategy. Default: `time=80%`. Options: `random`/`hold_last`/`time`/`interleave` with an optional ratio (default: 80%, which means 80% allocated to train, 20% to test), `cutoff=<timestamp>` and `field=<name>:<train>:<test>`. Example: `random=80%` means split dataset randomly, 80% should be allocated to the train set. See [splitting strategies](#traintest-splitting-strategies) below.
 * `eval`: *optional*, a list of eval metrics to measure after training. Default value is `["NDCG@10"]`, supported metrics are `NDCG`, `NDCG@k`, `MAP`, `MAP@k`, `MRR` (where `k` - cutoff value).
 * `warmup`: *optional*, API warmup settings. See the [API warmup section](../deploy/warmup.md) for details.
 
@@ -174,16 +174,25 @@ AND and OR selectors take a list of nested selectors as arguments, NOT selector 
 
 ### Train/test splitting strategies
 
-Metarank supports three train/test splitting strategies:
+Metarank supports the following train/test splitting strategies:
 
+* `time`: sort click-throughs by timestamp, train on the oldest N% and test on the newest ones. This is the default, as it mirrors how the model is used: trained on the past, serving the future.
 * `random`: split dataset randomly.
 * `hold_last`: for each session having multiple rankings, take last N% of rankings as a test set. Can be useful to measure an in-session personalization impact .
-* `time`: split dataset by a timestamp.
+* `interleave`: sort click-throughs by timestamp and spread the test ones evenly over the whole period: with `interleave=80%`, every fifth click-through goes to the test set. Both sets then cover old and recent traffic alike.
+* `cutoff`: train on all click-throughs before a timestamp, test on all from it on.
+* `field`: split by the value of a string ranking field, for example `field=split:train:test` trains on rankings having `split=train` and tests on `split=test`. Rankings with any other value are left out.
 
-Each strategy definition in a config file can be optionally configured with a split ratio - 80% by default. An example:
+Each ratio-based strategy definition in a config file can be optionally configured with a split ratio - 80% by default. An example:
 
 * `random=80%`: split dataset randomly. Be careful with random splitting, as it may introduce label leaking.
 * `hold_last`: split within session with a default 80% splitting ratio.
+* `interleave=75%`: every fourth click-through goes to the test set. As with `random`, test click-throughs sit between train ones in time, so features counting past interactions leak some of the test outcomes into training.
+* `cutoff=2024-03-01T00:00:00Z`: the timestamp is an ISO-8601 instant.
+
+The test set decides the NDCG reported after training, so two models are only comparable when they are tested on the same click-throughs.
+With `time` or `interleave` the test set depends on which click-throughs a model's [selector](#event-selectors) accepts. With `cutoff` it does not:
+every model is tested on the same period, which makes it the strategy to use when comparing models trained on different selections of data.
 
 ### XGBoost and LightGBM backend options
 
