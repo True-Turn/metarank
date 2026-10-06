@@ -83,7 +83,7 @@ object Train extends Logging {
   ): IO[TrainResult] =
     fitAndStore(store, fs2.Stream.emits(data).covary[IO], predictor)
 
-  // LambdaMART skips clickthroughs without interactions or values, so buffering them only costs heap
+  // Must match what LambdaMARTPredictor.loadDataset keeps
   private def usable(predictor: Predictor[? <: ModelConfig, ?, ? <: Model[? <: Context]], tv: TrainValues): Boolean =
     (predictor, tv) match {
       case (p: LambdaMARTPredictor, c: ClickthroughValues) =>
