@@ -125,8 +125,8 @@ object BestIterationBooster {
             if (ndcgTest > best) {
               best = ndcgTest
               bestIter = it
-              // This XGBoost build cannot slice a booster, so the best one is kept as a serialised copy
-              bestSnapshot = model.toByteArray()
+              // This XGBoost build cannot slice a booster, so the best one is kept as a UBJ copy, which holds categorical splits
+              bestSnapshot = model.toByteArray("ubj")
             }
             options.earlyStopping.foreach(threshold =>
               if (it - bestIter > threshold) {

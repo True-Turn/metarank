@@ -2,7 +2,7 @@ package ai.metarank.ml.rank
 
 import io.github.metarank.lightgbm4j.LGBMBooster.FeatureImportanceType
 import io.github.metarank.ltrlib.booster.{LightGBMBooster, LightGBMOptions, XGBoostBooster, XGBoostOptions}
-import io.github.metarank.ltrlib.model.Feature.SingularFeature
+import io.github.metarank.ltrlib.model.Feature.{CategoryFeature, SingularFeature}
 import io.github.metarank.ltrlib.model.{Dataset, DatasetDescriptor, Query}
 import io.github.metarank.ltrlib.ranking.pairwise.LambdaMART
 import org.scalatest.flatspec.AnyFlatSpec
@@ -64,5 +64,26 @@ class BestIterationBoosterTest extends AnyFlatSpec with Matchers {
   "XGBoost" should "keep only the trees up to the best test iteration" in {
     xgbTrees(LambdaMART(train, XGBoostBooster, Some(test), xgbOptions).fit(xgbOptions)) should be > 20
     xgbTrees(LambdaMART(train, BestIterationBooster.XGBoost, Some(test), xgbOptions).fit(xgbOptions)) shouldBe 1
+  }
+
+  it should "save the best iteration when it holds categorical splits" in {
+    val catDesc = DatasetDescriptor(List(CategoryFeature("c")))
+    def catDataset(seed: Int, relevant: Set[Int]): Dataset = {
+      val random = new Random(seed)
+      val queries = (0 until 100).map { group =>
+        val values = Array.fill(items)(random.nextInt(20).toDouble)
+        Query(group, values.map(v => if (relevant.contains(v.toInt)) 1.0 else 0.0), values)
+      }
+      Dataset(catDesc, queries.toList)
+    }
+    val opts = xgbOptions.copy(treeMethod = "hist")
+    val booster =
+      LambdaMART(catDataset(1, Set(3, 11)), BestIterationBooster.XGBoost, Some(catDataset(2, Set(5, 17))), opts)
+        .fit(opts)
+    // Tree dumps fail on categorical splits, so trees are counted in the saved JSON model
+    def trees(b: XGBoostBooster) =
+      "\"num_trees\":\"(\\d+)\"".r.findFirstMatchIn(new String(b.save())).map(_.group(1).toInt)
+    trees(booster).get should be < opts.trees
+    trees(XGBoostBooster(booster.save())) shouldBe trees(booster)
   }
 }
