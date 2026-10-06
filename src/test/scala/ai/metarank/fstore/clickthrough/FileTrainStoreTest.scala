@@ -89,7 +89,7 @@ class FileTrainStoreTest extends AnyFlatSpec with Matchers {
     corrupt.writeInt(3)
     corrupt.write(Array[Byte](1, 2, 3))
     BinaryStoreFormat.ctv.encodeDelimited(ctv, corrupt)
-    // Sorts before the store's own timestamped file
+    // Sorts before the store’s own timestamped file
     Files.write(dir.resolve("0-corrupt.bin"), corrupt.toByteArray)
     val (store, close) = FileTrainStore
       .create(dir.toString, BinaryStoreFormat)
