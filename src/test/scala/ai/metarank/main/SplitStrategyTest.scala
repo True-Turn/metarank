@@ -70,7 +70,7 @@ class SplitStrategyTest extends AnyFlatSpec with Matchers {
   }
 
   "hold-last split" should "hold back the latest rankings of each user" in {
-    // Group ids number each user's rankings in time order: 0..9 for u1, 100..109 for u2
+    // Group ids number each user’s rankings in time order: 0..9 for u1, 100..109 for u2
     val queries = for {
       (user, offset) <- List("u1" -> 0, "u2" -> 100)
       i              <- 0 until 10

@@ -194,7 +194,7 @@ Metarank supports the following train/test splitting strategies:
 Each ratio-based strategy definition in a config file can be optionally configured with a split ratio - 80% by default. An example:
 
 * `random=80%`: split dataset randomly. Be careful with random splitting, as it may introduce label leaking.
-* `hold_last`: split within each user's rankings with a default 80% splitting ratio.
+* `hold_last`: split within each user’s rankings with a default 80% splitting ratio.
 * `interleave=75%`: every fourth click-through goes to the test set. As with `random`, test click-throughs sit between train ones in time, so features counting past interactions leak some of the test outcomes into training.
 * `cutoff=2024-03-01T00:00:00Z`: the timestamp is an ISO-8601 instant.
 
