@@ -213,7 +213,7 @@ object CliArgs extends Logging {
         required = false,
         default = Some(SplitStrategy.default),
         descr =
-          "train/test splitting strategy (optional, default: time=80%, options: random=N%,time=N%,hold_last=N%,interleave=N%,cutoff=<ISO-8601>,field=<name>:<train>:<test>)"
+          "train/test splitting strategy (optional, default: time=80%, options: random=N%,time=N%,hold_last=N%,cutoff=<ISO-8601>,field=<name>:<train>:<test>)"
       )
     }
 

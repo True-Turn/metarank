@@ -5,7 +5,6 @@ import ai.metarank.main.command.train.SplitStrategy.{
   CutoffSplit,
   FieldStrategy,
   HoldLastStrategy,
-  InterleaveSplit,
   RandomSplit,
   TimeSplit
 }
@@ -16,17 +15,16 @@ import cats.effect.unsafe.implicits.global
 import io.github.metarank.ltrlib.model.{DatasetDescriptor, LabeledItem, Query}
 import io.github.metarank.ltrlib.model.Feature.SingularFeature
 import org.scalatest.flatspec.AnyFlatSpec
-import scala.util.Random
 import org.scalatest.matchers.should.Matchers
 
 import java.time.Instant
+import scala.util.Random
 
 class SplitStrategyTest extends AnyFlatSpec with Matchers {
   it should "parse inputs" in {
     SplitStrategy.parse("random=10%") shouldBe Right(RandomSplit(10))
     SplitStrategy.parse("random") shouldBe Right(RandomSplit(80))
     SplitStrategy.parse("field=split:train:test") shouldBe Right(FieldStrategy("split", "train", "test"))
-    SplitStrategy.parse("interleave=75%") shouldBe Right(InterleaveSplit(75))
     SplitStrategy.parse("cutoff=2026-09-15T00:00:00Z") shouldBe Right(
       CutoffSplit(Instant.parse("2026-09-15T00:00:00Z"))
     )
@@ -86,12 +84,6 @@ class SplitStrategyTest extends AnyFlatSpec with Matchers {
   def timed(n: Int) = Random
     .shuffle((0 until n).toList)
     .map(i => QueryMetadata(Query(i, Array(1.0), Array(1.0)), Timestamp(1000L * i), None, Nil))
-
-  "interleave split" should "spread test rows evenly in time order" in {
-    val split = InterleaveSplit(80).split(desc, timed(20)).unsafeRunSync()
-    split.test.groups.map(_.group) shouldBe List(4, 9, 14, 19)
-    split.train.groups.size shouldBe 16
-  }
 
   "cutoff split" should "test on rows at or after the cutoff" in {
     val split = CutoffSplit(Instant.ofEpochMilli(15000L)).split(desc, timed(20)).unsafeRunSync()

@@ -40,7 +40,7 @@ Subcommand: train - train the ML model
   -m, --model  <arg>    model name to train
   -s, --split  <arg>    train/test splitting strategy (optional, default:
                         time=80%, options:
-                        random=N%,time=N%,hold_last=N%,interleave=N%,cutoff=<ISO-8601>,field=<name>:<train>:<test>)
+                        random=N%,time=N%,hold_last=N%,cutoff=<ISO-8601>,field=<name>:<train>:<test>)
   -h, --help            Show help message
 
 Subcommand: serve - run the inference API
@@ -105,7 +105,7 @@ Subcommand: export - export training dataset for hyperparameter optimization
       --sample  <arg>   sampling ratio of exported training click-through events
   -s, --split  <arg>    train/test splitting strategy (optional, default:
                         time=80%, options:
-                        random=N%,time=N%,hold_last=N%,interleave=N%,cutoff=<ISO-8601>,field=<name>:<train>:<test>)
+                        random=N%,time=N%,hold_last=N%,cutoff=<ISO-8601>,field=<name>:<train>:<test>)
   -h, --help            Show help message
 
 Subcommand: termfreq - compute term frequencies for the BM25 field_match extractor

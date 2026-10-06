@@ -93,22 +93,7 @@ object SplitStrategy {
     }
   }
 
-  // Time-ordered split with test rows spread evenly over the whole period, ratioPercent of them going to train
-  case class InterleaveSplit(ratioPercent: Int) extends SplitStrategy {
-    override def split(desc: DatasetDescriptor, queries: List[QueryMetadata]): IO[Split] = IO {
-      logger.info(s"using interleave split strategy, ratio=$ratioPercent%")
-      val testShare = (100 - ratioPercent) / 100.0
-      // Row i goes to test when the running count of test rows ticks over, which spreads them evenly for any ratio
-      val (test, train) = queries
-        .sortBy(_.ts.ts)
-        .zipWithIndex
-        .partition { case (_, i) => math.floor((i + 1) * testShare) > math.floor(i * testShare) }
-      Split(Dataset(desc, train.map(_._1.query)), Dataset(desc, test.map(_._1.query)))
-    }
-  }
-
-  // Train on everything before the cutoff and test on everything from it on, so models with different
-  // selectors can still be evaluated on the same rows
+  // Every model is tested on the same period, whatever its selector accepts
   case class CutoffSplit(at: Instant) extends SplitStrategy {
     override def split(desc: DatasetDescriptor, queries: List[QueryMetadata]): IO[Split] = IO {
       logger.info(s"using cutoff split strategy, at=$at")
@@ -121,14 +106,12 @@ object SplitStrategy {
   val cutoffPattern = "cutoff=(.+)".r
   val fieldPattern  = "field=([a-zA-Z0-9\\-_]+):([a-zA-Z0-9\\-_]+):([a-zA-Z0-9\\-_]+)".r
   def parse(in: String): Either[Exception, SplitStrategy] = in match {
-    case "random"                          => Right(RandomSplit(80))
-    case splitPattern("random", ratio)     => Right(RandomSplit(ratio.toInt))
-    case "time"                            => Right(TimeSplit(80))
-    case splitPattern("time", ratio)       => Right(TimeSplit(ratio.toInt))
-    case "hold_last"                       => Right(HoldLastStrategy(80))
-    case splitPattern("hold_last", ratio)  => Right(HoldLastStrategy(ratio.toInt))
-    case "interleave"                      => Right(InterleaveSplit(80))
-    case splitPattern("interleave", ratio) => Right(InterleaveSplit(ratio.toInt))
+    case "random"                         => Right(RandomSplit(80))
+    case splitPattern("random", ratio)    => Right(RandomSplit(ratio.toInt))
+    case "time"                           => Right(TimeSplit(80))
+    case splitPattern("time", ratio)      => Right(TimeSplit(ratio.toInt))
+    case "hold_last"                      => Right(HoldLastStrategy(80))
+    case splitPattern("hold_last", ratio) => Right(HoldLastStrategy(ratio.toInt))
     case cutoffPattern(at) =>
       Try(Instant.parse(at)).toEither.left
         .map(_ => new Exception(s"cutoff $at is not an ISO-8601 instant"))
@@ -142,7 +125,6 @@ object SplitStrategy {
     case RandomSplit(ratio)                          => Json.fromString(s"random=$ratio%")
     case TimeSplit(ratio)                            => Json.fromString(s"time=$ratio%")
     case HoldLastStrategy(ratio)                     => Json.fromString(s"hold_last=$ratio%")
-    case InterleaveSplit(ratio)                      => Json.fromString(s"interleave=$ratio%")
     case CutoffSplit(at)                             => Json.fromString(s"cutoff=$at")
     case FieldStrategy(field, trainValue, testValue) => Json.fromString(s"field=$field:$trainValue:$testValue")
   }
